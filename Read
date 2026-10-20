@@ -1,0 +1,8 @@
+first add springboot dependencies.
+db.migration is because of fly
+
+docker compose up -d
+docker compose ps
+docker compose logs postgres
+
+Important: For this initial setup, Spring Boot runs directly from VS Code, so it connects to PostgreSQL using localhost:5432. If we later run Spring Boot inside Docker Compose, we'll change the database hostname to postgres.
