@@ -7,7 +7,7 @@ services:
       POSTGRES_DB: inventory_db
       POSTGRES_USER: inventory_user
       POSTGRES_PASSWORD: local_dev_password
-      TZ: "Asia/Kolkata"
+
     ports:
       - "5432:5432"
     volumes:
