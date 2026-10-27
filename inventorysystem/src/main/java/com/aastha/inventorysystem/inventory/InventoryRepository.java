@@ -16,28 +16,37 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     Optional<Inventory> findByProductIdForUpdate(
             @Param("id") Long id);
 
-    @Modifying
-    @Query(value = """
-        UPDATE inventory
-        SET on_hand = on_hand + :delta,
-            version = version + 1
-        WHERE product_id = :id
-          AND on_hand + :delta >= reserved
-        """, nativeQuery = true)
-    int adjustStock(
-            @Param("id") Long id,
-            @Param("delta") int delta);
 
     @Modifying
     @Query(value = """
-        UPDATE inventory
-        SET reserved = reserved + :quantity,
-            version = version + 1
-        WHERE product_id = :id
-          AND :quantity > 0
-          AND on_hand - reserved >= :quantity
-        """, nativeQuery = true)
-    int reserveStock(
-            @Param("id") Long id,
-            @Param("quantity") int quantity);
+    UPDATE inventory
+    SET on_hand = on_hand - :quantity,
+        reserved = reserved - :quantity,
+        version = version + 1
+    WHERE product_id = :id
+      AND :quantity > 0
+      AND reserved >= :quantity
+      AND on_hand >= :quantity
+    """, nativeQuery = true)
+    int consumeReservedStock(
+            @Param("id") Long productId,
+            @Param("quantity") int quantity
+    );
+
+
+
+    @Modifying
+    @Query(value = """
+    UPDATE inventory
+    SET reserved = reserved - :quantity,
+        version = version + 1
+    WHERE product_id = :id
+      AND :quantity > 0
+      AND reserved >= :quantity
+    """, nativeQuery = true)
+    int releaseReservedStock(
+            @Param("id") Long productId,
+            @Param("quantity") int quantity
+    );
+
 }

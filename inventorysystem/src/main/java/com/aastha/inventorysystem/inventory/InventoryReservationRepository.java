@@ -14,33 +14,25 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Pageable;
 
-public interface OrderRepository
+public interface InventoryReservationRepository
         extends JpaRepository<Order, Long> {
 
-    Optional<Order> findByIdempotencyKey(
-            String idempotencyKey
-    );
+    Optional<InventoryReservation> findByOrderItem_id(Long OrderItemId);
+
+    List<InventoryReservation>
+    findByOrderItem_PurchaseOrder_IdOrderByIdAsc(Long orderId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
-        SELECT o
-        FROM Order o
-        WHERE o.id = :id
-        """)
-    Optional<Order> findByIdForUpdate(
-            @Param("id") Long id
-    );
+  select r FROM InventoryReservation r
+  where r.orderItem.purchaseOrder.id=:orderId
+  order by r.id ASC
+""")
+    List<InventoryReservation> findByOrderIdForUpdate(
+            @Param("orderId") Long orderId);
 
-    @Query("""
-        SELECT o.id
-        FROM Order o
-        WHERE o.status = :status
-          AND o.expiresAt <= :now
-        ORDER BY o.expiresAt ASC
-        """)
-    List<Long> findExpiredOrderIds(
-            @Param("status") OrderStatus status,
-            @Param("now") OffsetDateTime now,
-            Pageable pageable
+    List<InventoryReservation> findByStatusAndExpiresAtLessThanEqual(
+            ReservationStatus status,
+            OffsetDateTime now
     );
 }
