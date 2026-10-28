@@ -1,5 +1,6 @@
-package com.aastha.inventorysystem.inventory;
+package com.aastha.inventorysystem.inventory.repository;
 
+import com.aastha.inventorysystem.inventory.model.InventoryMovement;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

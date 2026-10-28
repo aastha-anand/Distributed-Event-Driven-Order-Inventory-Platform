@@ -1,11 +1,15 @@
-package com.aastha.inventorysystem.inventory;
+package com.aastha.inventorysystem.inventory.controller;
 
 import com.aastha.inventorysystem.inventory.dto.InventoryResponse;
 import com.aastha.inventorysystem.inventory.dto.StockAdjustmentRequest;
 import com.aastha.inventorysystem.inventory.dto.StockReservationRequest;
+import com.aastha.inventorysystem.inventory.model.Inventory;
+import com.aastha.inventorysystem.inventory.model.InventoryMovement;
+import com.aastha.inventorysystem.inventory.repository.InventoryMovementRepository;
+import com.aastha.inventorysystem.inventory.repository.InventoryRepository;
+import com.aastha.inventorysystem.inventory.service.InventoryService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.web.bind.annotation.*;
 
 @RestController

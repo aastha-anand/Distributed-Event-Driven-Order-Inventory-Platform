@@ -1,11 +1,13 @@
-package com.aastha.inventorysystem.product;
+package com.aastha.inventorysystem.product.service;
 
-import com.aastha.inventorysystem.inventory.Inventory;
-import com.aastha.inventorysystem.inventory.InventoryMovement;
-import com.aastha.inventorysystem.inventory.InventoryMovementRepository;
-import com.aastha.inventorysystem.inventory.InventoryRepository;
-import com.aastha.inventorysystem.product.dto.CreateProductRequest;
+import com.aastha.inventorysystem.inventory.model.Inventory;
+import com.aastha.inventorysystem.inventory.model.InventoryMovement;
+import com.aastha.inventorysystem.inventory.repository.InventoryMovementRepository;
+import com.aastha.inventorysystem.inventory.repository.InventoryRepository;
+import com.aastha.inventorysystem.product.dto.ProductRequest;
 import com.aastha.inventorysystem.product.dto.ProductResponse;
+import com.aastha.inventorysystem.product.model.Product;
+import com.aastha.inventorysystem.product.repository.ProductRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,7 +30,7 @@ public class ProductService {
     }
 
     @Transactional
-    public ProductResponse create(CreateProductRequest request) {
+    public ProductResponse create(ProductRequest request) {
         if (productRepository.existsBySku(request.sku())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT, "SKU Already Exists");
@@ -38,7 +40,8 @@ public class ProductService {
                 new Product(
                         request.sku(),
                         request.name(),
-                        request.price()
+                        request.price(),
+                        true
                 )
         );
 

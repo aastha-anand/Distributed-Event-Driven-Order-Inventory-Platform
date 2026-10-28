@@ -1,6 +1,8 @@
-package com.aastha.inventorysystem.order;
+package com.aastha.inventorysystem.order.model;
 
+import com.aastha.inventorysystem.policy.OrderLifecyclePolicy;
 import jakarta.persistence.*;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;

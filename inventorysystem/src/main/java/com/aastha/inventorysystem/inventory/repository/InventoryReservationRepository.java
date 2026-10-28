@@ -1,7 +1,7 @@
-package com.aastha.inventorysystem.inventory;
+package com.aastha.inventorysystem.inventory.repository;
 
-import com.aastha.inventorysystem.order.Order;
-import com.aastha.inventorysystem.order.OrderStatus;
+import com.aastha.inventorysystem.inventory.model.InventoryReservation;
+import com.aastha.inventorysystem.inventory.model.ReservationStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -12,10 +12,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.data.domain.Pageable;
-
 public interface InventoryReservationRepository
-        extends JpaRepository<Order, Long> {
+        extends JpaRepository<InventoryReservation, Long> {
 
     Optional<InventoryReservation> findByOrderItem_id(Long OrderItemId);
 

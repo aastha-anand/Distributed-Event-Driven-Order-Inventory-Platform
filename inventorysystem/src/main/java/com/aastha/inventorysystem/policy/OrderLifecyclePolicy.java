@@ -1,6 +1,8 @@
-package com.aastha.inventorysystem.order;
+package com.aastha.inventorysystem.policy;
 
-import com.aastha.inventorysystem.inventory.ReservationStatus;
+import com.aastha.inventorysystem.inventory.model.ReservationStatus;
+import com.aastha.inventorysystem.order.model.OrderStatus;
+import com.aastha.inventorysystem.order.model.PaymentStatus;
 
 public final class OrderLifecyclePolicy {
     private OrderLifecyclePolicy() {

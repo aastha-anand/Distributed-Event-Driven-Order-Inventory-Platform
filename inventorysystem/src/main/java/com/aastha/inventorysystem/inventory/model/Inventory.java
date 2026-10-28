@@ -1,6 +1,6 @@
-package com.aastha.inventorysystem.inventory;
+package com.aastha.inventorysystem.inventory.model;
 
-import com.aastha.inventorysystem.product.Product;
+import com.aastha.inventorysystem.product.model.Product;
 import jakarta.persistence.*;
 
 @Entity

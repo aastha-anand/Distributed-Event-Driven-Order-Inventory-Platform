@@ -1,5 +1,6 @@
-package com.aastha.inventorysystem.inventory;
+package com.aastha.inventorysystem.inventory.repository;
 
+import com.aastha.inventorysystem.inventory.model.Inventory;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -48,5 +49,33 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
             @Param("id") Long productId,
             @Param("quantity") int quantity
     );
+
+    @Modifying
+    @Query(value = """
+    UPDATE inventory
+    SET reserved = reserved + :quantity,
+        version = version + 1
+    WHERE product_id = :id
+      AND :quantity > 0
+      AND on_hand - reserved >= :quantity
+    """, nativeQuery = true)
+    int reserveStock(
+            @Param("id") Long productId,
+            @Param("quantity") int quantity
+    );
+
+    @Modifying
+    @Query(value = """
+    UPDATE inventory
+    SET on_hand = on_hand + :delta,
+        version = version + 1
+    WHERE product_id = :id
+      AND on_hand + :delta >= reserved
+    """, nativeQuery = true)
+    int adjustStock(
+            @Param("id") Long productId,
+            @Param("delta") int delta
+    );
+
 
 }

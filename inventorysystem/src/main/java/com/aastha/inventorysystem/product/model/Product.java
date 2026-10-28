@@ -1,8 +1,7 @@
-package com.aastha.inventorysystem.product;
+package com.aastha.inventorysystem.product.model;
 
 
 import jakarta.persistence.*;
-import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -36,7 +35,7 @@ public class Product {
     protected Product() {
     }
 
-    public Product(String sku, String name, BigDecimal price) {
+    public Product(String sku, String name, BigDecimal price, Boolean active) {
         this.sku = sku;
         this.name = name;
         this.price = price;
@@ -48,6 +47,10 @@ public class Product {
     OffsetDateTime now = OffsetDateTime.now();
        createdAt = now;
        updatedAt = now;
+    }
+
+    public Product(String sku, String name, BigDecimal price) {
+        this(sku, name, price, true);
     }
 
     @PreUpdate
@@ -63,6 +66,8 @@ public class Product {
         return sku;
     }
 
+    public boolean isActive() { return active;}
+
     public String getName() {
         return name;
     }
@@ -70,4 +75,5 @@ public class Product {
     public BigDecimal getPrice() {
         return price;
     }
+
 }

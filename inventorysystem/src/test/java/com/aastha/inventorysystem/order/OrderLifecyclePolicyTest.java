@@ -4,7 +4,9 @@ package com.aastha.inventorysystem.order;
 
 
 
-import com.aastha.inventorysystem.inventory.ReservationStatus;
+import com.aastha.inventorysystem.inventory.model.ReservationStatus;
+import com.aastha.inventorysystem.order.model.OrderStatus;
+import com.aastha.inventorysystem.policy.OrderLifecyclePolicy;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

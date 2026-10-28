@@ -1,4 +1,4 @@
-package com.aastha.inventorysystem.inventory;
+package com.aastha.inventorysystem.inventory.model;
 
 public enum ReservationStatus {
     ACTIVE,

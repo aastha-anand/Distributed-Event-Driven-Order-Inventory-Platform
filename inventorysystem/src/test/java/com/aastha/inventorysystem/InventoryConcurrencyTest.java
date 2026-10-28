@@ -1,10 +1,10 @@
 package com.aastha.inventorysystem;
 
-import com.aastha.inventorysystem.inventory.Inventory;
-import com.aastha.inventorysystem.inventory.InventoryRepository;
-import com.aastha.inventorysystem.inventory.InventoryService;
-import com.aastha.inventorysystem.product.ProductService;
-import com.aastha.inventorysystem.product.dto.CreateProductRequest;
+import com.aastha.inventorysystem.inventory.model.Inventory;
+import com.aastha.inventorysystem.inventory.repository.InventoryRepository;
+import com.aastha.inventorysystem.inventory.service.InventoryService;
+import com.aastha.inventorysystem.product.service.ProductService;
+import com.aastha.inventorysystem.product.dto.ProductRequest;
 import com.aastha.inventorysystem.product.dto.ProductResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,7 +36,7 @@ class InventoryConcurrencyTest {
         int requests = 20;
 
         ProductResponse product = productService.create(
-                new CreateProductRequest(
+                new ProductRequest(
                         "TEST-" + UUID.randomUUID(),
                         "Concurrency Test Product",
                         new BigDecimal("100.00"),

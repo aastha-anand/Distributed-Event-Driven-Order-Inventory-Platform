@@ -1,7 +1,7 @@
-package com.aastha.inventorysystem.inventory;
+package com.aastha.inventorysystem.inventory.model;
 
-import com.aastha.inventorysystem.order.OrderItem;
-import com.aastha.inventorysystem.product.Product;
+import com.aastha.inventorysystem.order.service.OrderCancellationService;
+import com.aastha.inventorysystem.product.model.Product;
 import jakarta.persistence.*;
 
 import java.time.OffsetDateTime;
@@ -16,7 +16,7 @@ public class InventoryReservation {
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "order_item_id", nullable = false, unique = true)
-    private OrderItem orderItem;
+    private OrderCancellationService.OrderItem orderItem;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_id", nullable = false)
@@ -40,7 +40,7 @@ public class InventoryReservation {
     }
 
     public InventoryReservation(
-            OrderItem orderItem,
+            OrderCancellationService.OrderItem orderItem,
             Product product,
             Integer quantity,
             OffsetDateTime expiresAt) {
@@ -72,7 +72,7 @@ public class InventoryReservation {
         return id;
     }
 
-    public OrderItem getOrderItem() {
+    public OrderCancellationService.OrderItem getOrderItem() {
         return orderItem;
     }
 
