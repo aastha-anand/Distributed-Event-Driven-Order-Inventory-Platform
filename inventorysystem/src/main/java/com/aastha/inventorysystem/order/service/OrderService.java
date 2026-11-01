@@ -5,6 +5,7 @@ import com.aastha.inventorysystem.inventory.repository.InventoryMovementReposito
 import com.aastha.inventorysystem.inventory.repository.InventoryRepository;
 import com.aastha.inventorysystem.inventory.repository.InventoryReservationRepository;
 import com.aastha.inventorysystem.order.model.Order;
+import com.aastha.inventorysystem.order.model.OrderItem;
 import com.aastha.inventorysystem.order.dto.OrderRequest;
 import com.aastha.inventorysystem.order.dto.OrderItemRequest;
 import com.aastha.inventorysystem.order.dto.OrderItemResponse;
@@ -14,7 +15,10 @@ import com.aastha.inventorysystem.order.repository.OrderRepository;
 import com.aastha.inventorysystem.product.model.Product;
 import com.aastha.inventorysystem.product.repository.ProductRepository;
 import com.aastha.inventorysystem.inventory.model.InventoryReservation;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -39,6 +43,8 @@ public class OrderService {
     private final InventoryRepository inventoryRepository;
     private final InventoryReservationRepository reservationRepository;
     private final InventoryMovementRepository movementRepository;
+    private final TransactionTemplate transactionTemplate;
+    private final TransactionTemplate readOnlyTransactionTemplate;
 
     public OrderService(
             OrderRepository orderRepository,
@@ -46,17 +52,42 @@ public class OrderService {
             ProductRepository productRepository,
             InventoryRepository inventoryRepository,
             InventoryReservationRepository reservationRepository,
-            InventoryMovementRepository movementRepository) {
+            InventoryMovementRepository movementRepository,
+            PlatformTransactionManager transactionManager) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.productRepository = productRepository;
         this.inventoryRepository = inventoryRepository;
         this.reservationRepository = reservationRepository;
         this.movementRepository = movementRepository;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.readOnlyTransactionTemplate = new TransactionTemplate(transactionManager);
+        this.readOnlyTransactionTemplate.setReadOnly(true);
     }
 
-    @Transactional
+    /**
+     * Not @Transactional on purpose. If two requests with the same
+     * Idempotency-Key race, the loser fails on the unique index while inserting;
+     * that failure poisons its transaction, so it must be caught OUTSIDE the
+     * transaction and answered by replaying the winner's order.
+     */
     public OrderResponse createOrder(
+            String idempotencyKey,
+            OrderRequest request) {
+
+        try {
+            return transactionTemplate.execute(
+                    status -> doCreateOrder(idempotencyKey, request));
+        } catch (DataIntegrityViolationException raceLoser) {
+            return readOnlyTransactionTemplate.execute(status ->
+                    orderRepository.findByIdempotencyKey(idempotencyKey)
+                            .map(existing -> replay(existing,
+                                    calculateRequestHash(request)))
+                            .orElseThrow(() -> raceLoser));
+        }
+    }
+
+    private OrderResponse doCreateOrder(
             String idempotencyKey,
             OrderRequest request) {
 
@@ -98,15 +129,7 @@ public class OrderService {
 
         var existing = orderRepository.findByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
-            Order order = existing.get();
-
-            if (!order.getRequestHash().equals(requestHash)) {
-                throw new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "Idempotency key was already used for a different request");
-            }
-
-            return toResponse(order);
+            return replay(existing.get(), requestHash);
         }
 
         Map<Long, Product> products = new HashMap<>();
@@ -144,7 +167,7 @@ public class OrderService {
 
         orderRepository.saveAndFlush(order);
 
-        List<OrderCancellationService.OrderItem> savedItems = new ArrayList<>();
+        List<OrderItem> savedItems = new ArrayList<>();
 
         List<OrderItemRequest> sortedItems = request.items().stream()
                 .sorted((a, b) -> a.productId().compareTo(b.productId()))
@@ -163,8 +186,8 @@ public class OrderService {
                                 + product.getId());
             }
 
-            OrderCancellationService.OrderItem orderItem = orderItemRepository.save(
-                    new OrderCancellationService.OrderItem(
+            OrderItem orderItem = orderItemRepository.save(
+                    new OrderItem(
                             order,
                             product,
                             item.quantity(),
@@ -197,6 +220,15 @@ public class OrderService {
         return toResponse(order, savedItems);
     }
 
+    private OrderResponse replay(Order order, String requestHash) {
+        if (!order.getRequestHash().equals(requestHash)) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Idempotency key was already used for a different request");
+        }
+        return toResponse(order);
+    }
+
     @Transactional(readOnly = true)
     public OrderResponse getOrder(Long orderId) {
         Order order = orderRepository.findById(orderId)
@@ -207,7 +239,7 @@ public class OrderService {
     }
 
     private OrderResponse toResponse(Order order) {
-        List<OrderCancellationService.OrderItem> items =
+        List<OrderItem> items =
                 orderItemRepository.findByPurchaseOrder_IdOrderByIdAsc(
                         order.getId());
 
@@ -215,7 +247,7 @@ public class OrderService {
     }
 
     private OrderResponse toResponse(
-            Order order, List<OrderCancellationService.OrderItem> items) {
+            Order order, List<OrderItem> items) {
 
         List<OrderItemResponse> itemResponses = items.stream()
                 .map(item -> new OrderItemResponse(

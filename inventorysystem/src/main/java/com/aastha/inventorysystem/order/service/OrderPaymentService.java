@@ -12,6 +12,7 @@ import com.aastha.inventorysystem.order.model.PaymentStatus;
 import com.aastha.inventorysystem.order.repository.OrderRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -106,7 +107,8 @@ public class OrderPaymentService {
 
         requireActiveReservations(reservations);
 
-        releaseReservations(reservations, orderId, "RELEASE");
+        releaseReservations(
+                reservations, orderId, ReservationStatus.RELEASED);
 
         order.markPaymentFailed();
     }
@@ -136,10 +138,21 @@ public class OrderPaymentService {
         }
     }
 
-    void releaseReservations(
+    /**
+     * Gives reserved stock back to the available pool. Must run inside the
+     * caller's transaction, with the order and reservation rows already locked.
+     *
+     * @param finalStatus RELEASED (cancel / payment failure) or EXPIRED (timeout)
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void releaseReservations(
             List<InventoryReservation> reservations,
             Long orderId,
-            String movementType) {
+            ReservationStatus finalStatus) {
+
+        String reference = finalStatus == ReservationStatus.EXPIRED
+                ? "ORDER-" + orderId + "-EXPIRED"
+                : "ORDER-" + orderId;
 
         for (InventoryReservation reservation : reservations) {
             Long productId = reservation.getProduct().getId();
@@ -154,15 +167,21 @@ public class OrderPaymentService {
                                 + productId);
             }
 
-            reservation.markReleased();
+            if (finalStatus == ReservationStatus.EXPIRED) {
+                reservation.markExpired();
+            } else {
+                reservation.markReleased();
+            }
 
+            // The movement-type CHECK constraint has no EXPIRE value,
+            // so expiry is recorded as a RELEASE with a distinct reference.
             movementRepository.save(
                     new InventoryMovement(
                             productId,
-                            movementType,
+                            "RELEASE",
                             0,
                             -quantity,
-                            "ORDER-" + orderId));
+                            reference));
         }
     }
 }

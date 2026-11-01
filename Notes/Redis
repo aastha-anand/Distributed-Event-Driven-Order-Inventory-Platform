@@ -1,0 +1,22 @@
+docker run -d `
+  --name inventory-redis `
+  -p 6379:6379 `
+  redis:7-alpine
+
+docker exec -it inventory-redis redis-cli ping
+
+PING
+SET product:1 "Laptop"
+GET product:1
+EXPIRE product:1 300
+TTL product:1
+DEL product:1
+KEYS *
+
+Command	Purpose
+PING	Check Redis connection
+SET	Store a key-value pair
+GET	Retrieve a value
+EXPIRE	Set expiration
+TTL	Check remaining lifetime
+DEL	Delete a key

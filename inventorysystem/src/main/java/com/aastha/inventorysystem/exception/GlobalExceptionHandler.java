@@ -70,6 +70,20 @@ public class GlobalExceptionHandler {
                 null);
     }
 
+    // Raised by OrderLifecyclePolicy and the order/payment services when a
+    // state transition is not allowed (e.g. paying a cancelled order).
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalState(
+            IllegalStateException ex) {
+
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                ex.getMessage() != null
+                        ? ex.getMessage()
+                        : "Operation not allowed in the current state",
+                null);
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrity(
             DataIntegrityViolationException ex) {

@@ -12,6 +12,8 @@ import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.cache.annotation.Cacheable;
+import java.util.NoSuchElementException;
 
 @Service
 public class ProductService {
@@ -60,6 +62,32 @@ public class ProductService {
                     )
             );
         }
+        return new ProductResponse(
+                product.getId(),
+                product.getSku(),
+                product.getName(),
+                product.getPrice(),
+                inventory.getOnHand(),
+                inventory.getReserved(),
+                inventory.getAvailable()
+        );
+    }
+
+    @Cacheable(value = "products", key = "#productId")
+    public ProductResponse getProduct(Long productId) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Product not found"
+                ));
+
+        Inventory inventory = inventoryRepository.findByProductId(productId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Inventory not found"
+                ));
+
         return new ProductResponse(
                 product.getId(),
                 product.getSku(),

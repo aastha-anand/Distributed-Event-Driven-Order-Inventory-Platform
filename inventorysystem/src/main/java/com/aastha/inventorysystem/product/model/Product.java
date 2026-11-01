@@ -39,14 +39,14 @@ public class Product {
         this.sku = sku;
         this.name = name;
         this.price = price;
-        this.active = true;
+        this.active = active == null || active;
     }
 
     @PrePersist
     void onCreate() {
-    OffsetDateTime now = OffsetDateTime.now();
-       createdAt = now;
-       updatedAt = now;
+        OffsetDateTime now = OffsetDateTime.now();
+        createdAt = now;
+        updatedAt = now;
     }
 
     public Product(String sku, String name, BigDecimal price) {

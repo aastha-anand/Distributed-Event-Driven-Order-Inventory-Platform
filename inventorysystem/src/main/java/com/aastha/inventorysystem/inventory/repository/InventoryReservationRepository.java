@@ -15,7 +15,7 @@ import java.util.Optional;
 public interface InventoryReservationRepository
         extends JpaRepository<InventoryReservation, Long> {
 
-    Optional<InventoryReservation> findByOrderItem_id(Long OrderItemId);
+    Optional<InventoryReservation> findByOrderItem_Id(Long orderItemId);
 
     List<InventoryReservation>
     findByOrderItem_PurchaseOrder_IdOrderByIdAsc(Long orderId);

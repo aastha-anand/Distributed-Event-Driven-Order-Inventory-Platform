@@ -1,6 +1,7 @@
 package com.aastha.inventorysystem.inventory.model;
 
-import com.aastha.inventorysystem.order.service.OrderCancellationService;
+import com.aastha.inventorysystem.order.model.OrderItem;
+import com.aastha.inventorysystem.policy.OrderLifecyclePolicy;
 import com.aastha.inventorysystem.product.model.Product;
 import jakarta.persistence.*;
 
@@ -16,7 +17,7 @@ public class InventoryReservation {
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "order_item_id", nullable = false, unique = true)
-    private OrderCancellationService.OrderItem orderItem;
+    private OrderItem orderItem;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_id", nullable = false)
@@ -40,7 +41,7 @@ public class InventoryReservation {
     }
 
     public InventoryReservation(
-            OrderCancellationService.OrderItem orderItem,
+            OrderItem orderItem,
             Product product,
             Integer quantity,
             OffsetDateTime expiresAt) {
@@ -57,22 +58,27 @@ public class InventoryReservation {
     }
 
     public void markReleased() {
-        this.status = ReservationStatus.RELEASED;
+        transitionTo(ReservationStatus.RELEASED);
     }
 
     public void markConsumed() {
-        this.status = ReservationStatus.CONSUMED;
+        transitionTo(ReservationStatus.CONSUMED);
     }
 
     public void markExpired() {
-        this.status = ReservationStatus.EXPIRED;
+        transitionTo(ReservationStatus.EXPIRED);
+    }
+
+    private void transitionTo(ReservationStatus next) {
+        OrderLifecyclePolicy.requireReservationTransition(this.status, next);
+        this.status = next;
     }
 
     public Long getId() {
         return id;
     }
 
-    public OrderCancellationService.OrderItem getOrderItem() {
+    public OrderItem getOrderItem() {
         return orderItem;
     }
 
