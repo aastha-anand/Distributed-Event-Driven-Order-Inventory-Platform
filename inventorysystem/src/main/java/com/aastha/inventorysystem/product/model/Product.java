@@ -26,7 +26,7 @@ public class Product {
     @Column(nullable = false)
     private boolean active = true;
 
-    @Column(name = "created_at", nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
@@ -42,6 +42,10 @@ public class Product {
         this.active = active == null || active;
     }
 
+    public Product(String sku, String name, BigDecimal price) {
+        this(sku, name, price, true);
+    }
+
     @PrePersist
     void onCreate() {
         OffsetDateTime now = OffsetDateTime.now();
@@ -49,13 +53,22 @@ public class Product {
         updatedAt = now;
     }
 
-    public Product(String sku, String name, BigDecimal price) {
-        this(sku, name, price, true);
-    }
-
     @PreUpdate
     void onUpdate() {
         updatedAt = OffsetDateTime.now();
+    }
+
+    /** Applies a partial update; null arguments leave the field unchanged. */
+    public void update(String name, BigDecimal price, Boolean active) {
+        if (name != null) {
+            this.name = name;
+        }
+        if (price != null) {
+            this.price = price;
+        }
+        if (active != null) {
+            this.active = active;
+        }
     }
 
     public Long getId() {

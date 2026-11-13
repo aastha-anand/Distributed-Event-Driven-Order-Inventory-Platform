@@ -3,9 +3,9 @@ package com.aastha.inventorysystem.inventory.service;
 import com.aastha.inventorysystem.inventory.model.InventoryMovement;
 import com.aastha.inventorysystem.inventory.repository.InventoryMovementRepository;
 import com.aastha.inventorysystem.inventory.repository.InventoryRepository;
-import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service

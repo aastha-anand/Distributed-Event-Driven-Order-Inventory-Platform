@@ -1,11 +1,12 @@
 package com.aastha.inventorysystem.config;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.cache.CacheManager;
 
 import java.time.Duration;
 
@@ -14,15 +15,17 @@ public class RedisConfig {
 
     @Bean
     public CacheManager cacheManager(
-            RedisConnectionFactory redisConnectionFactory) {
-
-        RedisCacheConfiguration cacheConfiguration =
+            RedisConnectionFactory redisConnectionFactory,
+            @Value("${inventory.cache.product-ttl-minutes:10}") long productTtlMinutes
+    ){
+        RedisCacheConfiguration defaults =
                 RedisCacheConfiguration.defaultCacheConfig()
-                        .entryTtl(Duration.ofMinutes(10))
-                        .disableCachingNullValues();
+                        .entryTtl(Duration.ofMinutes(productTtlMinutes))
+                        .disableCachingNullValues()
+                        .prefixCacheNameWith("inventory::");
 
         return RedisCacheManager.builder(redisConnectionFactory)
-                .cacheDefaults(cacheConfiguration)
+                .cacheDefaults(defaults)
                 .build();
     }
 }
