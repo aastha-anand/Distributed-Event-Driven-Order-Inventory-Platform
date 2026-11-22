@@ -11,8 +11,8 @@
 	<groupId>com.example</groupId>
 	<artifactId>inventorysystem</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<name>inventorysystem</name>
+	<description>Event-driven order and inventory reservation service</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -128,6 +128,11 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
