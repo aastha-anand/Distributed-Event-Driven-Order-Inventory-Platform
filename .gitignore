@@ -1,9 +1,4 @@
-gittarget/
-node_modules/
-dist/
-*.log
 .idea/
 *.iml
 .DS_Store
-.env
-Notes
+target/
