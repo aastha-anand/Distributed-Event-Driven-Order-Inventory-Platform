@@ -1,5 +1,7 @@
 package com.aastha.inventorysystem.order.service;
 
+import com.aastha.inventorysystem.event.OrderEventType;
+import com.aastha.inventorysystem.event.OutboxService;
 import com.aastha.inventorysystem.inventory.model.InventoryMovement;
 import com.aastha.inventorysystem.inventory.repository.InventoryMovementRepository;
 import com.aastha.inventorysystem.inventory.repository.InventoryRepository;
@@ -15,6 +17,8 @@ import com.aastha.inventorysystem.order.repository.OrderRepository;
 import com.aastha.inventorysystem.product.model.Product;
 import com.aastha.inventorysystem.product.repository.ProductRepository;
 import com.aastha.inventorysystem.inventory.model.InventoryReservation;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,8 +47,12 @@ public class OrderService {
     private final InventoryRepository inventoryRepository;
     private final InventoryReservationRepository reservationRepository;
     private final InventoryMovementRepository movementRepository;
+    private final OutboxService outboxService;
     private final TransactionTemplate transactionTemplate;
     private final TransactionTemplate readOnlyTransactionTemplate;
+    private final Counter ordersAccepted;
+    private final Counter ordersReplayedAfterRace;
+    private final Counter ordersRejectedStock;
 
     public OrderService(
             OrderRepository orderRepository,
@@ -53,16 +61,25 @@ public class OrderService {
             InventoryRepository inventoryRepository,
             InventoryReservationRepository reservationRepository,
             InventoryMovementRepository movementRepository,
-            PlatformTransactionManager transactionManager) {
+            OutboxService outboxService,
+            PlatformTransactionManager transactionManager,
+            MeterRegistry meterRegistry) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.productRepository = productRepository;
         this.inventoryRepository = inventoryRepository;
         this.reservationRepository = reservationRepository;
         this.movementRepository = movementRepository;
+        this.outboxService = outboxService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.readOnlyTransactionTemplate = new TransactionTemplate(transactionManager);
         this.readOnlyTransactionTemplate.setReadOnly(true);
+        this.ordersAccepted = Counter.builder("inventory.orders")
+                .tag("outcome", "accepted").register(meterRegistry);
+        this.ordersReplayedAfterRace = Counter.builder("inventory.orders")
+                .tag("outcome", "replay_after_race").register(meterRegistry);
+        this.ordersRejectedStock = Counter.builder("inventory.orders")
+                .tag("outcome", "insufficient_stock").register(meterRegistry);
     }
 
     /**
@@ -76,9 +93,19 @@ public class OrderService {
             OrderRequest request) {
 
         try {
-            return transactionTemplate.execute(
+            OrderResponse created = transactionTemplate.execute(
                     status -> doCreateOrder(idempotencyKey, request));
+            ordersAccepted.increment();
+            return created;
+        } catch (ResponseStatusException rejected) {
+            if (rejected.getStatusCode().value() == HttpStatus.CONFLICT.value()
+                    && rejected.getReason() != null
+                    && rejected.getReason().startsWith("Insufficient stock")) {
+                ordersRejectedStock.increment();
+            }
+            throw rejected;
         } catch (DataIntegrityViolationException raceLoser) {
+            ordersReplayedAfterRace.increment();
             return readOnlyTransactionTemplate.execute(status ->
                     orderRepository.findByIdempotencyKey(idempotencyKey)
                             .map(existing -> replay(existing,
@@ -212,6 +239,10 @@ public class OrderService {
         }
 
         order.markReserved();
+
+        // Same transaction as the order + reservations: all commit or none do.
+        outboxService.recordOrderEvent(
+                OrderEventType.ORDER_RESERVED, order, savedItems);
 
         savedItems.sort(
                 (a, b) -> a.getProduct().getId()

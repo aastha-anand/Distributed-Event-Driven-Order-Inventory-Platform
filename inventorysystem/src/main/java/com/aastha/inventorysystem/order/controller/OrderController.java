@@ -5,6 +5,7 @@ import com.aastha.inventorysystem.order.dto.OrderResponse;
 import com.aastha.inventorysystem.order.service.OrderCancellationService;
 import com.aastha.inventorysystem.order.service.OrderPaymentService;
 import com.aastha.inventorysystem.order.service.OrderService;
+import com.aastha.inventorysystem.order.service.PaymentOutcome;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -12,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 
 @RestController
@@ -57,11 +59,17 @@ public class OrderController {
         return orderService.getOrder(orderId);
     }
 
-    // Development/demo endpoints only.
-    // Replace these with verified payment-provider webhooks in production.
+    // Payment-provider callbacks. Protected by an HMAC signature check in
+    // ApiSecurityFilter (X-Webhook-Timestamp / X-Webhook-Signature).
     @PostMapping("/{orderId}/payment/success")
     public OrderResponse paymentSucceeded(@PathVariable Long orderId) {
-        paymentService.paymentSucceeded(orderId);
+        PaymentOutcome outcome = paymentService.paymentSucceeded(orderId);
+        if (outcome == PaymentOutcome.RECONCILIATION_REQUIRED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Reservation expired before payment arrived; "
+                            + "flagged for reconciliation");
+        }
         return orderService.getOrder(orderId);
     }
 

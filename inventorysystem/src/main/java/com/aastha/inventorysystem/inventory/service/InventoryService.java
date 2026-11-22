@@ -50,31 +50,4 @@ public class InventoryService {
                 )
         );
     }
-    @Transactional
-    public void reserveStock(
-            Long productId, int quantity, String orderReference) {
-        if (quantity <= 0) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Reservation quantity must be positive");
-        }
-
-        int updated =
-                inventoryRepository.reserveStock(productId, quantity);
-
-        if (updated == 0) {
-            if (!inventoryRepository.existsById(productId)) {
-                throw new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Inventory not found");
-            }
-
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "Insufficient available stock");
-        }
-
-        movementRepository.save(
-                new InventoryMovement(
-                        productId, "RESERVATION", 0, quantity, orderReference));
-    }
-
 }

@@ -35,7 +35,7 @@ public class OutboxEvent {
     private OffsetDateTime publishedAt;
 
     protected OutboxEvent() {
-        // Required by JPA.
+
     }
 
     public OutboxEvent(

@@ -1,5 +1,8 @@
 package com.aastha.inventorysystem.order.service;
 
+import com.aastha.inventorysystem.event.OrderEventType;
+import com.aastha.inventorysystem.event.OutboxEvent;
+import com.aastha.inventorysystem.event.OutboxService;
 import com.aastha.inventorysystem.inventory.model.InventoryMovement;
 import com.aastha.inventorysystem.inventory.repository.InventoryMovementRepository;
 import com.aastha.inventorysystem.inventory.repository.InventoryRepository;
@@ -25,35 +28,37 @@ public class OrderCancellationService {
     private final InventoryReservationRepository reservationRepository;
     private final InventoryRepository inventoryRepository;
     private final InventoryMovementRepository movementRepository;
+    private final OutboxService outboxService;
 
     public OrderCancellationService(
             OrderRepository orderRepository,
             InventoryReservationRepository reservationRepository,
             InventoryRepository inventoryRepository,
-            InventoryMovementRepository movementRepository) {
+            InventoryMovementRepository movementRepository,
+            OutboxService outboxService) {
 
         this.orderRepository = orderRepository;
         this.reservationRepository = reservationRepository;
         this.inventoryRepository = inventoryRepository;
         this.movementRepository = movementRepository;
+        this.outboxService = outboxService;
     }
 
     @Transactional
     public void cancelOrder(Long orderId) {
 
-        // 1. Lock the order to prevent concurrent cancellation/payment updates.
+
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Order not found: " + orderId
                 ));
 
-        // 2. Make repeated cancellation requests idempotent.
         if (order.getStatus() == OrderStatus.CANCELLED) {
             return;
         }
 
-        // 3. Only orders awaiting payment can be cancelled here.
+
         if (order.getStatus() != OrderStatus.RESERVED
                 || order.getPaymentStatus() != PaymentStatus.PENDING) {
             throw new ResponseStatusException(
@@ -62,7 +67,7 @@ public class OrderCancellationService {
             );
         }
 
-        // 4. Lock the order's reservations.
+
         List<InventoryReservation> reservations =
                 reservationRepository.findByOrderIdForUpdate(orderId);
 
@@ -73,7 +78,7 @@ public class OrderCancellationService {
             );
         }
 
-        // Validate all reservations before modifying any stock.
+
         for (InventoryReservation reservation : reservations) {
             if (reservation.getStatus() != ReservationStatus.ACTIVE) {
                 throw new ResponseStatusException(
@@ -83,7 +88,7 @@ public class OrderCancellationService {
             }
         }
 
-        // 5. Release reserved stock and record each movement.
+
         for (InventoryReservation reservation : reservations) {
 
             Long productId = reservation.getProduct().getId();
@@ -102,10 +107,8 @@ public class OrderCancellationService {
                 );
             }
 
-            // Mark the reservation as released.
             reservation.markReleased();
 
-            // Record the stock movement.
             InventoryMovement movement = new InventoryMovement(
                     productId,
                     "RELEASE",
@@ -117,7 +120,10 @@ public class OrderCancellationService {
             movementRepository.save(movement);
         }
 
-        // 6. Mark the order as cancelled.
         order.markCancelled();
+
+        outboxService.recordOrderEvent(
+                OrderEventType.ORDER_CANCELLED, order, null);
+
     }
 }

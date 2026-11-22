@@ -1,5 +1,7 @@
 package com.aastha.inventorysystem.order.service;
 
+import com.aastha.inventorysystem.event.OrderEventType;
+import com.aastha.inventorysystem.event.OutboxService;
 import com.aastha.inventorysystem.inventory.model.InventoryReservation;
 import com.aastha.inventorysystem.inventory.model.ReservationStatus;
 import com.aastha.inventorysystem.inventory.repository.InventoryReservationRepository;
@@ -27,16 +29,19 @@ public class OrderExpiryService {
     private final OrderRepository orderRepository;
     private final InventoryReservationRepository reservationRepository;
     private final OrderPaymentService paymentService;
+    private final OutboxService outboxService;
     private final TransactionTemplate transactionTemplate;
 
     public OrderExpiryService(
             OrderRepository orderRepository,
             InventoryReservationRepository reservationRepository,
             OrderPaymentService paymentService,
+            OutboxService outboxService,
             PlatformTransactionManager transactionManager) {
         this.orderRepository = orderRepository;
         this.reservationRepository = reservationRepository;
         this.paymentService = paymentService;
+        this.outboxService = outboxService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -89,6 +94,8 @@ public class OrderExpiryService {
                 reservations, orderId, ReservationStatus.EXPIRED);
 
         order.markExpired();
+        outboxService.recordOrderEvent(
+                OrderEventType.ORDER_EXPIRED, order, null);
         return true;
     }
 }

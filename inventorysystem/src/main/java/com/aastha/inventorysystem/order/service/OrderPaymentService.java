@@ -1,5 +1,7 @@
 package com.aastha.inventorysystem.order.service;
 
+import com.aastha.inventorysystem.event.OrderEventType;
+import com.aastha.inventorysystem.event.OutboxService;
 import com.aastha.inventorysystem.inventory.repository.InventoryMovementRepository;
 import com.aastha.inventorysystem.inventory.model.InventoryMovement;
 import com.aastha.inventorysystem.inventory.repository.InventoryRepository;
@@ -10,6 +12,8 @@ import com.aastha.inventorysystem.order.model.Order;
 import com.aastha.inventorysystem.order.model.OrderStatus;
 import com.aastha.inventorysystem.order.model.PaymentStatus;
 import com.aastha.inventorysystem.order.repository.OrderRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -23,39 +27,52 @@ import java.util.List;
 @Service
 public class OrderPaymentService {
 
+    private static final Logger log =
+            LoggerFactory.getLogger(OrderPaymentService.class);
+
     private final OrderRepository orderRepository;
     private final InventoryReservationRepository reservationRepository;
     private final InventoryRepository inventoryRepository;
     private final InventoryMovementRepository movementRepository;
+    private final OutboxService outboxService;
 
     public OrderPaymentService(
             OrderRepository orderRepository,
             InventoryReservationRepository reservationRepository,
             InventoryRepository inventoryRepository,
-            InventoryMovementRepository movementRepository) {
+            InventoryMovementRepository movementRepository,
+            OutboxService outboxService) {
         this.orderRepository = orderRepository;
         this.reservationRepository = reservationRepository;
         this.inventoryRepository = inventoryRepository;
         this.movementRepository = movementRepository;
+        this.outboxService = outboxService;
     }
 
     @Transactional
-    public void paymentSucceeded(Long orderId) {
+    public PaymentOutcome paymentSucceeded(Long orderId) {
         Order order = lockOrder(orderId);
 
         // Repeated success callbacks must not deduct stock twice.
         if (order.getStatus() == OrderStatus.CONFIRMED
                 && order.getPaymentStatus() == PaymentStatus.SUCCEEDED) {
-            return;
+            return PaymentOutcome.ALREADY_CONFIRMED;
         }
 
         requireReservedAndPending(order);
 
         if (!order.getExpiresAt().isAfter(
                 OffsetDateTime.now(ZoneOffset.UTC))) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Reservation has expired; payment needs reconciliation");
+            // Money may have been captured for an order we can no longer
+            // fulfil. Returning normally (not throwing) commits the outbox
+            // row, so the reconciliation signal is durable; the controller
+            // still answers 409. The expiry job releases the stock as usual.
+            log.warn("Payment for order {} arrived after its reservation "
+                    + "expired; flagged for reconciliation", orderId);
+            outboxService.recordOrderEvent(
+                    OrderEventType.PAYMENT_RECONCILIATION_REQUIRED,
+                    order, null);
+            return PaymentOutcome.RECONCILIATION_REQUIRED;
         }
 
         List<InventoryReservation> reservations =
@@ -88,6 +105,9 @@ public class OrderPaymentService {
         }
 
         order.markConfirmed();
+        outboxService.recordOrderEvent(
+                OrderEventType.ORDER_CONFIRMED, order, null);
+        return PaymentOutcome.CONFIRMED;
     }
 
     @Transactional
@@ -111,6 +131,8 @@ public class OrderPaymentService {
                 reservations, orderId, ReservationStatus.RELEASED);
 
         order.markPaymentFailed();
+        outboxService.recordOrderEvent(
+                OrderEventType.ORDER_PAYMENT_FAILED, order, null);
     }
 
     private Order lockOrder(Long orderId) {
