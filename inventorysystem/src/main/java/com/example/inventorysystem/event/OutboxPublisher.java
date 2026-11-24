@@ -40,6 +40,9 @@ public class OutboxPublisher {
     private final OutboxEventRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final TransactionTemplate transactionTemplate;
+    /** Upper bound on batches per scheduled run, so one run cannot hold the thread forever. */
+    private static final int MAX_BATCHES_PER_RUN = 20;
+
     private final int batchSize;
     private final long retentionDays;
     private final Counter publishedCounter;
@@ -50,7 +53,7 @@ public class OutboxPublisher {
             KafkaTemplate<String, String> kafkaTemplate,
             PlatformTransactionManager transactionManager,
             MeterRegistry meterRegistry,
-            @Value("${inventory.outbox-batch-size:100}") int batchSize,
+            @Value("${inventory.outbox-batch-size:500}") int batchSize,
             @Value("${inventory.outbox-retention-days:7}") long retentionDays) {
         this.outboxRepository = outboxRepository;
         this.kafkaTemplate = kafkaTemplate;
@@ -71,18 +74,32 @@ public class OutboxPublisher {
 
     @Scheduled(fixedDelayString = "${inventory.outbox-poll-ms:1000}")
     public void publishPending() {
-        try {
-            transactionTemplate.executeWithoutResult(status -> sendBatch());
-        } catch (RuntimeException e) {
-            log.error("Outbox publishing failed; will retry", e);
+        // One batch per transaction, but keep going while batches come back
+        // full: a fixed "one batch per poll" caps throughput at
+        // batchSize / pollInterval events per second, and under sustained load
+        // the backlog (and event delay) would grow without bound.
+        for (int i = 0; i < MAX_BATCHES_PER_RUN; i++) {
+            int published;
+            try {
+                Integer count = transactionTemplate.execute(status -> sendBatch());
+                published = count == null ? 0 : count;
+            } catch (RuntimeException e) {
+                log.error("Outbox publishing failed; will retry", e);
+                return;
+            }
+            if (published < batchSize) {
+                return; // backlog drained, or a failure stopped the batch early
+            }
         }
     }
 
-    private void sendBatch() {
+    /** @return how many events of the batch were delivered and marked published */
+    private int sendBatch() {
         List<OutboxEvent> batch = outboxRepository.lockNextBatch(batchSize);
         if (batch.isEmpty()) {
-            return;
+            return 0;
         }
+        int delivered = 0;
 
         List<CompletableFuture<?>> inFlight = new ArrayList<>(batch.size());
         for (OutboxEvent event : batch) {
@@ -104,16 +121,18 @@ public class OutboxPublisher {
                 inFlight.get(i).get(15, TimeUnit.SECONDS);
                 event.markPublished();
                 publishedCounter.increment();
+                delivered++;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return;
+                return delivered;
             } catch (Exception e) {
                 failedCounter.increment();
                 log.warn("Could not publish outbox event {} ({}); retrying later",
                         event.getId(), e.toString());
-                return;
+                return delivered;
             }
         }
+        return delivered;
     }
 
     private ProducerRecord<String, String> toRecord(OutboxEvent event) {

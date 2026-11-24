@@ -27,7 +27,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -179,5 +183,41 @@ class OutboxPublisherTest {
         assertThatCode(() -> publisher.purgeOldEvents()).doesNotThrowAnyException();
         verify(repository, times(1)).deletePublishedBefore(any());
         verify(repository, never()).lockNextBatch(anyInt());
+    }
+
+    @Test
+    void keepsPublishingWhileBatchesComeBackFull() {
+        OutboxPublisher small = new OutboxPublisher(
+                repository, kafkaTemplate, txManager, new SimpleMeterRegistry(), 2, 7);
+        OutboxEvent a = event(1, "10");
+        OutboxEvent b = event(2, "11");
+        OutboxEvent c = event(3, "12");
+        when(repository.lockNextBatch(2)).thenReturn(List.of(a, b), List.of(c));
+        when(kafkaTemplate.send(any(ProducerRecord.class)))
+                .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
+
+        small.publishPending();
+
+        assertThat(a.getPublishedAt()).isNotNull();
+        assertThat(b.getPublishedAt()).isNotNull();
+        assertThat(c.getPublishedAt()).isNotNull();
+        verify(repository, times(2)).lockNextBatch(2);
+    }
+
+    @Test
+    void stopsAfterAFailedBatchInsteadOfSpinning() {
+        OutboxPublisher small = new OutboxPublisher(
+                repository, kafkaTemplate, txManager, new SimpleMeterRegistry(), 2, 7);
+        OutboxEvent a = event(1, "10");
+        OutboxEvent b = event(2, "11");
+        when(repository.lockNextBatch(2)).thenReturn(List.of(a, b));
+        CompletableFuture<SendResult<String, String>> failed = new CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("broker down"));
+        when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(failed);
+
+        small.publishPending();
+
+        verify(repository, times(1)).lockNextBatch(2);
+        assertThat(a.getPublishedAt()).isNull();
     }
 }
