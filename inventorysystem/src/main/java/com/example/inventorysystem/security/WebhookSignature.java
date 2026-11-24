@@ -8,13 +8,6 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.HexFormat;
 
-/**
- * HMAC-SHA256 signing for payment-provider callbacks.
- *
- * <p>Signed message: {@code <epochSeconds>.<METHOD>.<path>}. The timestamp
- * bounds how long a captured request can be replayed; the payment endpoints
- * are idempotent, so a replay inside that window changes nothing anyway.
- */
 public final class WebhookSignature {
 
     private static final String ALGORITHM = "HmacSHA256";

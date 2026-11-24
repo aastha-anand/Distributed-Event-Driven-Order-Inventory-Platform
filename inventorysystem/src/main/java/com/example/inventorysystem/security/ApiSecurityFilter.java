@@ -14,17 +14,6 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.regex.Pattern;
 
-/**
- * Minimal edge security (no Spring Security dependency):
- * <ul>
- *   <li>{@code /api/orders/{id}/payment/(success|failure)} must carry a valid
- *       HMAC signature ({@code X-Webhook-Timestamp}, {@code X-Webhook-Signature}),
- *       i.e. only the payment provider, who holds the shared secret, can call it.</li>
- *   <li>Every other {@code /api/**} route needs {@code X-API-Key}.</li>
- *   <li>{@code /actuator/**} is left open for probes and Prometheus scraping;
- *       keep it on a private network in a real deployment.</li>
- * </ul>
- */
 @Component
 public class ApiSecurityFilter extends OncePerRequestFilter {
 

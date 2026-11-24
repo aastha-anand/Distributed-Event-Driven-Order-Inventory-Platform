@@ -1,12 +1,3 @@
-// Load test for order creation.  Run:
-//   k6 run loadtest/k6-order-flow.js
-//   k6 run -e RATE=300 -e DURATION=90s -e HOT_STOCK=2000 loadtest/k6-order-flow.js
-// Env: BASE_URL, API_KEY, RATE (orders/s per scenario), DURATION, HOT_STOCK, SKUS
-//
-// Two scenarios:
-//   hot_sku   - every request fights for ONE product (worst case: row-lock contention,
-//               and a correctness check: accepted orders must never exceed stock)
-//   many_skus - requests spread over SKUS products (typical catalogue traffic)
 import http from 'k6/http';
 import { check } from 'k6';
 import { Counter } from 'k6/metrics';
@@ -20,7 +11,6 @@ const SKUS = Number(__ENV.SKUS || 200);
 
 const HEADERS = { 'Content-Type': 'application/json', 'X-API-Key': API_KEY };
 
-// 409 "Insufficient stock" is an expected business answer, not a failure.
 http.setResponseCallback(http.expectedStatuses(200, 201, 409));
 
 const accepted = new Counter('hot_orders_accepted');
